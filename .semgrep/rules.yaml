@@ -1,0 +1,8 @@
+rules:
+  - id: detect-hardcoded-google-api-key
+    pattern-regex: AIzaSy[A-Za-z0-9_\-]+
+    message: >-
+      A hardcoded Google API key prefix has been detected. Hardcoding API keys is extremely insecure and can lead to credentials leakage, unauthorized usage, and potential billing charges. Please retrieve your Google API keys securely from environment variables, secret managers, or external configuration vaults instead of hardcoding them in source code.
+    languages:
+      - python
+    severity: ERROR

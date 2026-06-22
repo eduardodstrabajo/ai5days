@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function HighCuisine() {
+export default function cookingBestPractices() {
   const cookingBestPractices = [
     'Separate stocks for animal proteins and high-purine plant ingredients; do not share concentrated liquids.',
     'Use short-cook methods for proteins and finish with diluted vegetable broth rather than reduced glazes.',

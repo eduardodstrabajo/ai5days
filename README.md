@@ -1,6 +1,12 @@
-# Managing_gout_with_ai
+<div align="center">
+<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
+</div>
 
-Managing_gout_with_ai provides culinary best practices, dietary guidance, and tools to help chefs, dietitians, and patients adapt recipes and meal plans for managing hyperuricemia and gout. The repository contains chef-facing skills, educational modules, and a small development web app. Content is informational and not a substitute for professional medical advice.
+# Run and deploy your AI Studio app
+
+This contains everything you need to run your app locally.
+
+View your app in AI Studio: https://ai.studio/apps/6f7f7274-9175-4329-873d-002c730aa9ee
 
 ## Run Locally
 
@@ -9,14 +15,6 @@ Managing_gout_with_ai provides culinary best practices, dietary guidance, and to
 
 1. Install dependencies:
    `npm install`
-2. Copy `.env.example` to `.env.local` and fill in secrets (do NOT commit `.env.local`):
-   - GEMINI_API_KEY (required)
-   - APP_API_KEY (required in production)
-   - ALLOWED_ORIGIN (production CORS origin)
-   - NODE_ENV (development or production)
-   - PORT (optional)
-
-   To set secrets for GitHub Actions / production, add them under the repository Settings -> Secrets.
-
-3. Run the app locally:
+2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+3. Run the app:
    `npm run dev`

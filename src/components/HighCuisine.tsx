@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function cookingBestPractices() {
+export default function HighCuisine() {
   const cookingBestPractices = [
     'Separate stocks for animal proteins and high-purine plant ingredients; do not share concentrated liquids.',
     'Use short-cook methods for proteins and finish with diluted vegetable broth rather than reduced glazes.',
@@ -69,7 +69,7 @@ export default function cookingBestPractices() {
         </section>
       </div>
 
-      <div className="mt-4 text-xs text-slate-500">Skill file: .agents/skills/cooking-best-practices/SKILL.md — use for SOP copy-paste. These are culinary strategies, not medical advice.</div>
+      <div className="mt-4 text-xs text-slate-500">Skill file: .agents/skills/high-cuisine-cooking-best-practices/SKILL.md — use for SOP copy-paste. These are culinary strategies, not medical advice.</div>
     </div>
   );
 }

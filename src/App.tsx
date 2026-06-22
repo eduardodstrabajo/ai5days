@@ -29,7 +29,7 @@ import ExerciseTracker from './components/ExerciseTracker';
 import StretchDollIcon from './components/StretchDollIcon';
 import Symptoms from './components/Symptoms';
 import FootPainIcon from './components/FootPainIcon';
-import HighCuisine from './components/cookingBestPractices';
+import HighCuisine from './components/HighCuisine';
 import LowPurineDetails from './components/LowPurineDetails';
 import ModeratePurineDetails from './components/ModeratePurineDetails';
 import HighPurineDetails from './components/HighPurineDetails';

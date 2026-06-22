@@ -1,6 +1,6 @@
 {
   "name": "Gout Care Companion",
-  "description": "A comprehensive chronic-care companion to log gout flares, manage natural remedies & supplements, log hydration, audit purine intake, and consult an AI food scanner.",
+  "description": "An empathetic clinical AI-guided gout and joint-care companion with real-time biometric and meal tracking.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

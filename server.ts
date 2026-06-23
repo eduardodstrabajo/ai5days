@@ -14,6 +14,23 @@ app.use(express.json());
 
 // OpenRouter Agent SDK configuration
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_KEY || null;
+
+// Helper: redact sensitive values when logging or returning errors
+const redactSensitive = (v: any) => {
+  if (typeof v !== 'string') return v;
+  // redact OpenRouter-style keys (sk-... ) and long JWT-like tokens
+  return v
+    .replace(/Bearer\s+\S+/gi, 'Bearer <REDACTED>')
+    .replace(/sk-[A-Za-z0-9._-]{8,}/g, '<REDACTED_KEY>')
+    .replace(/[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g, '<REDACTED_JWT>')
+    .replace(/([A-Za-z0-9-_=]{30,})/g, '<REDACTED_TOKEN>');
+};
+
+const maskPathToken = (p: string) => {
+  if (typeof p !== 'string') return p;
+  // mask token segment in /k/{kernel}/{token}/...
+  return p.replace(/(\/k\/[^/]+\/)[^/]+(\/|$)/, (m, g1, g2) => `${g1}<REDACTED_TOKEN>${g2}`);
+};
 // Default to the requested OSS GPT-120B model alias; can be overridden with OPENROUTER_MODEL
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'openai/gpt-oss-120b:free';
 
@@ -21,8 +38,14 @@ let openrouterClient: any = null;
 if (!OPENROUTER_API_KEY) {
   console.warn('OPENROUTER_API_KEY is not set. Agent endpoints will return an error until configured.');
 } else {
-  console.log('OpenRouter API key detected. Using model:', OPENROUTER_MODEL);
-  openrouterClient = new OpenRouter({ apiKey: OPENROUTER_API_KEY });
+// Initialize client with the key, then remove it from process.env to reduce accidental leakage.
+console.log('OpenRouter API key detected. Using model:', OPENROUTER_MODEL);
+openrouterClient = new OpenRouter({ apiKey: OPENROUTER_API_KEY });
+try {
+  // Remove sensitive env vars from process.env to avoid accidental exposure in child processes or templates
+  delete process.env.OPENROUTER_API_KEY;
+  delete process.env.OPENROUTER_KEY;
+} catch (_) {}
 }
 
 // AI Gout Care Coach Skill function declarations
@@ -283,7 +306,9 @@ app.post("/api/gemini/chat", async (req, res) => {
   } catch (error: any) {
     console.error("Agent chat error:", error);
     // If OpenRouter returned structured validation info, include it for debugging
-    const details = (error && (error.rawValue?.body$ || error.rawMessage || error.message)) || String(error);
+    let details = (error && (error.rawValue?.body$ || error.rawMessage || error.message)) || String(error);
+    details = redactSensitive(details);
+    console.error("Agent chat error:", redactSensitive(error));
     return res.status(500).json({ error: `Failed to process coach chat. ${details}` });
   }
 });
@@ -340,8 +365,9 @@ app.post("/api/gemini/food-analysis", async (req, res) => {
     if (!analyzedData) throw new Error('Model returned non-JSON response');
     return res.json(analyzedData);
   } catch (error: any) {
-    console.error("Food analysis error:", error);
-    const details = (error && (error.rawValue?.body$ || error.rawMessage || error.message)) || String(error);
+    console.error("Food analysis error:", redactSensitive(error));
+    let details = (error && (error.rawValue?.body$ || error.rawMessage || error.message)) || String(error);
+    details = redactSensitive(details);
     return res.status(500).json({ error: `Failed to analyze food. ${details}` });
   }
 });
@@ -392,8 +418,10 @@ async function startServer() {
     }
   }
 
+  // Mask basePath in logs to avoid leaking tokens if the basePath contains a kernel token
+  const loggedBase = basePath && basePath.includes('/k/') ? maskPathToken(basePath) : basePath;
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT} (base: ${basePath})`);
+    console.log(`Server running on http://localhost:${PORT} (base: ${loggedBase})`);
   });
 }
 

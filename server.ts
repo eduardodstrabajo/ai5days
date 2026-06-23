@@ -12,6 +12,28 @@ const PORT = process.env.PORT ? Number(process.env.PORT) : 8000;
 
 app.use(express.json());
 
+// Security headers and dev/proxy compatibility fixes.
+// PROXY_HOST can be set via env when running behind a proxy (Kaggle, Codespaces, etc.)
+const PROXY_HOST = process.env.ADK_PROXY_HOST || process.env.ADK_PROXY_HOSTNAME || 'https://kkb-production.jupyter-proxy.kaggle.net';
+app.use((req, res, next) => {
+  // Conservative CSP that allows the proxy host for images, scripts, and connections.
+  const cspParts = [
+    "default-src 'self'",
+    `img-src 'self' data: ${PROXY_HOST}`,
+    `connect-src 'self' ${PROXY_HOST} wss:`,
+    `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${PROXY_HOST}`,
+    `style-src 'self' 'unsafe-inline' ${PROXY_HOST}`,
+  ];
+  try { res.setHeader('Content-Security-Policy', cspParts.join('; ')); } catch (_) {}
+
+  // Ensure Vite dev module routes are served with correct JS MIME type when proxied
+  const p = (req.path || req.url || '').toString();
+  if (p.startsWith('/@vite/') || p.startsWith('/@react-refresh') || p.endsWith('.js') || /\/src\/.*\.(js|ts|tsx)$/.test(p)) {
+    try { res.setHeader('Content-Type', 'application/javascript; charset=utf-8'); } catch (_) {}
+  }
+  next();
+});
+
 // OpenRouter Agent SDK configuration
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_KEY || null;
 

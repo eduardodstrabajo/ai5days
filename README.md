@@ -40,11 +40,61 @@ Prerequisites
 - With temporary env (single command): OPENROUTER_API_KEY="sk-..." npm run dev
 - The server listens on PORT (env) or 8000 by default.
 
-4) Stop / restart
-- Find processes: ps aux | grep 'tsx server.ts' | grep -v grep
-- Stop: kill <PID>
-- Restart: npm run dev
-- Tail logs: tail -f /tmp/dev_server_run.log (created when started by the CLI commands in this README)
+4) Terminating the app (full steps)
+
+- If running in foreground (attached):
+  - Stop with Ctrl+C in the terminal where `npm run dev` is running.
+
+- Graceful shutdown by PID (recommended):
+  ```bash
+  # find the PID(s) for the dev server
+  ps aux | grep "tsx server.ts" | grep -v grep
+  # or by node/tsx processes
+  ps aux | grep node | grep -v grep
+
+  # send TERM to allow cleanup
+  kill <PID>
+  ```
+
+- Find and stop by port (useful if you don't know the PID):
+  ```bash
+  # requires lsof (or use ss/netstat)
+  lsof -iTCP:8000 -sTCP:LISTEN -Pn -t   # prints PID(s)
+  kill <PID>
+
+  # alternative: using ss
+  ss -ltnp | grep ":8000"
+  ```
+
+- If the process does not exit after TERM, force kill:
+  ```bash
+  kill -9 <PID>
+  ```
+  (Only use SIGKILL when necessary.)
+
+- WebSocket or auxiliary ports (example 24678):
+  ```bash
+  lsof -iTCP:24678 -sTCP:LISTEN -Pn -t || ss -ltnp | grep ":24678"
+  ```
+
+- Verify the server is stopped:
+  ```bash
+  # should fail / return no listener
+  lsof -iTCP:8000 -sTCP:LISTEN -Pn || ss -ltnp | grep ":8000" || true
+  # and HTTP should not respond
+  curl -sS http://localhost:8000/api/health || echo "server not responding"
+  ```
+
+- Notes & tips
+  - Prefer `kill <PID>` (SIGTERM) to allow graceful cleanup. Use `kill -9` only when necessary.
+  - If you started the server via a process manager (systemd, pm2, Docker), stop it with the manager (e.g., `systemctl stop <service>`, `pm2 stop <name>`, `docker stop <container>`).
+  - Remove temporary logs if desired: `rm -f /tmp/dev_server_run.log`.
+  - If running inside a Codespace or remote container, ensure you have permission to kill the process (the user shown by `ps aux` will own the PID).
+
+- Restarting after stop:
+  ```bash
+  npm run dev
+  ```
 
 5) Health check and quick API tests
 - Health: curl -sS http://localhost:8000/api/health | jq

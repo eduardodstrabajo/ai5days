@@ -246,7 +246,7 @@ app.post("/api/gemini/chat", async (req, res) => {
     if (!openrouterClient) throw new Error('OpenRouter client not initialized');
     // Convert chat-style messages to OpenRouter input format
     const { fromChatMessages } = await import('@openrouter/agent');
-    const input = fromChatMessages(messages);
+    const input = fromChatMessages(messages as any);
     const result = await openrouterClient.callModel({
       model: OPENROUTER_MODEL,
       input,
@@ -309,7 +309,7 @@ app.post("/api/gemini/food-analysis", async (req, res) => {
 
     if (!openrouterClient) throw new Error('OpenRouter client not initialized');
     const { fromChatMessages } = await import('@openrouter/agent');
-    const input = fromChatMessages(messages);
+    const input = fromChatMessages(messages as any);
     const result = await openrouterClient.callModel({ model: OPENROUTER_MODEL, input });
 
     let jsonText = '';
@@ -347,24 +347,53 @@ app.post("/api/gemini/food-analysis", async (req, res) => {
 });
 
 async function startServer() {
+  // Allow configuring a base path when the app is served behind a proxy (e.g. Kaggle proxy)
+  // Example: DEV_BASE_PATH="/k/<kernel>/<token>/proxy/proxy/8000"
+  const basePath = process.env.DEV_BASE_PATH || process.env.BASE_PATH || '/';
+
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
+      base: basePath,
     });
-    app.use(vite.middlewares);
+
+    // If serving under a non-root base path, ensure express mounts the vite middleware at that path
+    if (basePath !== '/' && basePath.endsWith('/')) {
+      // Strip trailing slash for mounting
+      const mountPath = basePath.slice(0, -1);
+      app.use(mountPath, (req, res, next) => vite.middlewares(req, res, next));
+    } else if (basePath !== '/') {
+      app.use(basePath, (req, res, next) => vite.middlewares(req, res, next));
+    } else {
+      app.use(vite.middlewares);
+    }
   } else {
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    
-    // Express v4 asset fallback
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
+
+    if (basePath !== '/' && basePath.endsWith('/')) {
+      const mountPath = basePath.slice(0, -1);
+      app.use(mountPath, express.static(distPath));
+
+      // Serve index.html for client-side routing under the base path
+      app.get(`${mountPath}/*`, (req, res) => {
+        res.sendFile(path.join(distPath, 'index.html'));
+      });
+    } else if (basePath !== '/') {
+      app.use(basePath, express.static(distPath));
+      app.get(`${basePath}/*`, (req, res) => {
+        res.sendFile(path.join(distPath, 'index.html'));
+      });
+    } else {
+      app.use(express.static(distPath));
+      app.get('*', (req, res) => {
+        res.sendFile(path.join(distPath, 'index.html'));
+      });
+    }
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Server running on http://localhost:${PORT} (base: ${basePath})`);
   });
 }
 

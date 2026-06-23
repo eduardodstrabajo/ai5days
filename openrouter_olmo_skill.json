@@ -1,0 +1,16 @@
+{
+  "name": "openrouter-olmo-chat-skill",
+  "version": "0.1.0",
+  "language": "python",
+  "description": "Send chat completion requests to AllenAI Olmo via OpenRouter",
+  "entrypoint": "example.py",
+  "env": {
+    "OPENROUTER_API_KEY": "required"
+  },
+  "requirements": ["openai"],
+  "snippet": "import os\nfrom openai import OpenAI\n\n# Initialize the client with your key and the OpenRouter base URL\nclient = OpenAI(\n    base_url=\"https://openrouter.ai/api/v1\",\n    api_key=os.environ.get(\"OPENROUTER_API_KEY\"),\n)\n\nprint(\"Sending request to Olmo model via OpenRouter...\")\n\n# Send a request to the Olmo chat model with basic error handling\ntry:\n    response = client.chat.completions.create(\n        model=\"allenai/olmo-3-32b-think\",\n        messages=[{\"role\": \"user\", \"content\": \"What are 5 things to do in Seattle?\"}],\n    )\n    print(\"\\n--- Model Response ---\")\n    print(response.choices[0].message.content)\nexcept Exception as e:\n    print(\"Request failed:\", e)\n",
+  "usage": "1) pip install openai\n2) export OPENROUTER_API_KEY=...\n3) python example.py",
+  "examples": ["python example.py"],
+  "license": "MIT",
+  "author": "Copilot"
+}

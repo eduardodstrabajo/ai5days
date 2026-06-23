@@ -1,0 +1,19 @@
+{
+  "name": "openrouter-gpt-oss-120b-stream-skill",
+  "version": "0.1.0",
+  "language": "bash",
+  "description": "Stream chat completions from OpenRouter using model openai/gpt-oss-120b:free via curl",
+  "entrypoint": "curl-stream.sh",
+  "env": {
+    "OPENROUTER_API_KEY": "required"
+  },
+  "requirements": ["curl"],
+  "snippet": "curl -N https://openrouter.ai/api/v1/chat/completions \\\n  -H \"Content-Type: application/json\" \\\n  -H \"Authorization: Bearer $OPENROUTER_API_KEY\" \\\n  -d '{\n  \"model\": \"openai/gpt-oss-120b:free\",\n  \"stream\": true,\n  \"messages\": [\n    {\"role\": \"user\", \"content\": \"Hello\"}\n  ]\n}'",
+  "usage": [
+    "export OPENROUTER_API_KEY=\"YOUR_KEY_HERE\"",
+    "bash -c \"curl -N https://openrouter.ai/api/v1/chat/completions -H 'Content-Type: application/json' -H \"Authorization: Bearer $OPENROUTER_API_KEY\" -d '{\"model\": \"openai/gpt-oss-120b:free\", \"stream\": true, \"messages\": [{\"role\": \"user\", \"content\": \"Hello\"}] }'\""
+  ],
+  "examples": ["curl-stream.sh"],
+  "license": "MIT",
+  "author": "Copilot"
+}

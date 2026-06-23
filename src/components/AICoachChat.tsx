@@ -89,18 +89,14 @@ export default function AICoachChat({
         role: 'model',
         text: `Hello! I am **Gemi Coach**, your Gout Companion and AI Care Coach. 🔬
 
-I can digest medical papers *(PubMed)* and cross-reference clinical guidelines *(Mayo Clinic)* to support you. You can chat with me or use the **microphone** to speak.
+I can digest medical papers *(PubMed)* and cross-reference clinical guidelines *(Mayo Clinic)* to provide information and recommendations. I cannot modify your app data or perform actions — I only display read-only guidance from research, expert, and cooking-best-practices skills.
 
-**Here is what you can ask me to do:**
-* 💧 *"I just drank a glass of 350ml water"*
-* 📈 *"Log my uric acid lab test as 5.8 mg/dL"*
-* 🚫 *"Track an active flare-up on my Left Knee with a pain level of 7"*
-* 💫 *"My big toe flare has cleared up completely"*
-* 🏃‍♂️ *"Record walking exercise for 30 minutes"*
-* 😴 *"Log 8 hours of excellent quality rest"*
-* 🥦 *"Suggest some kidney alkalizing superfoods and add them to my watchlist"*
+You can ask me questions like:
+* "Summarize recent PubMed findings on dietary triggers for gout"
+* "Explain best-practice cooking tips to lower purine content"
+* "Provide expert guidance on handling organ meats in a gout-friendly diet"
 
-How can I assist your biological joint care journey today?`,
+How can I help you today?`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       },
     ]);
@@ -239,7 +235,7 @@ How can I assist your biological joint care journey today?`,
             <h2 className="font-bold text-slate-900 text-sm flex items-center gap-1.5 leading-tight">
               Gemi Coach
               <span className="bg-indigo-150 text-indigo-700 text-[9px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded-full border border-indigo-200">
-                ACTIVE AI COACH
+                READ-ONLY CHATBOT
               </span>
             </h2>
             <p className="text-[11px] text-slate-400 font-medium">Empathetic Clinical Rheumatology Guide & App Skills Integration</p>

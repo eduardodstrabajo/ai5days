@@ -500,69 +500,34 @@ export default function App() {
   };
 
   // AI coach skill executor: called by AICoachChat when Gemini suggests tool calls
+  // Modified: Gemi Coach runs in read-only mode in-app. Block any skill that would mutate application state.
   const handleExecuteSkill = (name: string, args: any): string | null => {
-    // Return a human-friendly confirmation message when action was performed, or null if none
+    // Allowed read-only informational skill names (variants included)
+    const readOnlySkills = new Set([
+      'research',
+      'research_skill',
+      'yourt-expert',
+      'yourt_expert',
+      'yourt expert',
+      'meat-expert',
+      'meat_expert',
+      'cooking-best-practices',
+      'cooking_best_practices',
+      'high-cuisine',
+      'summary',
+    ]);
+
     try {
-      switch (name) {
-        case 'log-water':
-          // args.amount expected in ml
-          if (typeof args?.amount === 'number') {
-            handleUpdateWater(args.amount);
-            return `Logged ${args.amount}ml water.`;
-          }
-          return null;
-        case 'add-natural-food':
-          if (args?.name) {
-            handleAddNaturalFood({
-              name: args.name,
-              servingSize: args.servingSize || '1 portion',
-              frequency: args.frequency || 'Daily',
-              category: args.category || 'Other',
-              mechanism: args.mechanism,
-              notes: args.notes,
-            });
-            return `Added ${args.name} to your natural foods watchlist.`;
-          }
-          return null;
-        case 'log-ua':
-          if (typeof args?.value === 'number') {
-            handleAddUALog({ date: args.date || new Date().toISOString().split('T')[0], value: args.value, notes: args.notes });
-            return `Recorded uric acid ${args.value} mg/dL`;
-          }
-          return null;
-        case 'add-flare':
-          if (args?.joint) {
-            handleAddFlareLog({ startDate: args.startDate || new Date().toISOString().split('T')[0], joint: args.joint, painLevel: args.painLevel || 5, triggers: args.triggers || [], remediesTaken: args.remediesTaken || [], notes: args.notes });
-            return `Logged active flare at ${args.joint}`;
-          }
-          return null;
-        case 'resolve-flare':
-          if (args?.id) {
-            handleResolveFlareLog(args.id);
-            return `Resolved flare ${args.id}`;
-          }
-          if (activeFlare) {
-            handleResolveFlareLog(activeFlare.id);
-            return `Resolved active flare at ${activeFlare.joint}`;
-          }
-          return null;
-        case 'add-exercise':
-          if (args?.activityType) {
-            handleAddExercise({ date: args.date || new Date().toISOString().split('T')[0], activityType: args.activityType, duration: args.duration || 30, jointStrain: args.jointStrain || 1, remissionPhase: !!args.remissionPhase, notes: args.notes });
-            return `Logged exercise: ${args.activityType}`;
-          }
-          return null;
-        case 'add-sleep':
-          if (typeof args?.hours === 'number') {
-            handleAddSleep({ date: args.date || new Date().toISOString().split('T')[0], hours: args.hours, quality: args.quality || 'Good', restlessJoints: !!args.restlessJoints, meditationCompleted: !!args.meditationCompleted });
-            return `Logged sleep: ${args.hours} hours`;
-          }
-          return null;
-        default:
-          return null;
+      if (readOnlySkills.has(name)) {
+        // Provide a short confirmation that information is displayed; do NOT mutate app state.
+        return `Displayed read-only information for "${name}". No changes were made to your journal.`;
       }
+
+      // Block any skill execution that would change app state in read-only mode
+      console.warn(`Blocked skill execution (read-only mode): ${name}`, args);
+      return null;
     } catch (e) {
-      console.error('Skill execution error', e);
+      console.error('Skill execution error (read-only mode)', e);
       return null;
     }
   };

@@ -1,27 +1,29 @@
 import express from "express";
 import path from "path";
 import dotenv from "dotenv";
-import { GoogleGenAI, Type, FunctionDeclaration } from "@google/genai";
+import { OpenRouter } from '@openrouter/agent';
+import { Type, FunctionDeclaration } from "@google/genai"; // keep Type defs used earlier for schema shapes
 import { createServer as createViteServer } from "vite";
 
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT ? Number(process.env.PORT) : 8000;
 
 app.use(express.json());
 
-// Initialize Gemini SDK with recommended user agent settings and process environment
-const ai = process.env.GEMINI_API_KEY
-  ? new GoogleGenAI({
-      apiKey: process.env.GEMINI_API_KEY,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        },
-      },
-    })
-  : null;
+// OpenRouter Agent SDK configuration
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_KEY || null;
+// Default to the requested OSS GPT-120B model alias; can be overridden with OPENROUTER_MODEL
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'openai/gpt-oss-120b:free';
+
+let openrouterClient: any = null;
+if (!OPENROUTER_API_KEY) {
+  console.warn('OPENROUTER_API_KEY is not set. Agent endpoints will return an error until configured.');
+} else {
+  console.log('OpenRouter API key detected. Using model:', OPENROUTER_MODEL);
+  openrouterClient = new OpenRouter({ apiKey: OPENROUTER_API_KEY });
+}
 
 // AI Gout Care Coach Skill function declarations
 const logWaterDecl: FunctionDeclaration = {
@@ -216,15 +218,13 @@ const addSleepDecl: FunctionDeclaration = {
 
 // Health Endpoint
 app.get("/api/health", (req, res) => {
-  res.json({ status: "ok", aiEnabled: !!ai });
+  res.json({ status: "ok", aiEnabled: !!OPENROUTER_API_KEY });
 });
 
-// Gout AI Coach Conversational & Function Execution Endpoint
+// Gout AI Coach Conversational Endpoint (now using OpenRouter Agent SDK)
 app.post("/api/gemini/chat", async (req, res) => {
-  if (!ai) {
-    return res.status(500).json({
-      error: "Gemini API key is not configured. Please add GEMINI_API_KEY to your project Secrets.",
-    });
+  if (!OPENROUTER_API_KEY) {
+    return res.status(500).json({ error: "OpenRouter API key is not configured. Please add OPENROUTER_API_KEY to your project Secrets." });
   }
 
   const { message, history } = req.body;
@@ -233,55 +233,65 @@ app.post("/api/gemini/chat", async (req, res) => {
   }
 
   try {
-    const formattedHistory = (history || []).map((h: any) => ({
-      role: h.role === 'model' ? 'model' : 'user',
-      parts: [{ text: h.text }],
-    }));
+    // Build messages for the Agent SDK: include system instruction that requests JSON output
+    const systemInstruction = `You are Gemi Coach, an empathetic expert rheumatologist assistant and Gout Care Coach. Provide evidence-backed guidance (PubMed, Mayo Clinic, Healthline). DO NOT perform any remote side-effects. If you want the app to perform an action, respond with a JSON object with two keys: \"text\" (string reply to user) and \"toolCalls\" (an array of objects {name:string,args:object}). If no tool calls are requested, toolCalls should be an empty array. Be concise.`;
 
-    const chat = ai.chats.create({
-      model: "gemini-3.5-flash",
-      history: formattedHistory,
-      config: {
-        systemInstruction: "You are Gemi Coach, an empathetic expert rheumatologist assistant and Gout Care Coach. Gout patients will chat with you about joint pain flareups, diet, sleep, and indicators. You support them with lifestyle advice (hydration, low-purine and moderate-purine intakes, sleeping guidelines, natural wellness superfoods) as detailed by publications (Mayo Clinic, PubMed, Healthline evidence reviews). Offer to log these parameters easily using the appropriate tools at your disposal whenever they describe making these actions (e.g., drinks 250ml water, records a uric acid of 5.8, starts or resolves a big toe flare, logs sleep hours, completes exercise, etc.). Always return supportive feedback alongside any tool execution.",
-        tools: [{
-          functionDeclarations: [
-            logWaterDecl,
-            addNaturalFoodDecl,
-            logUaDecl,
-            addFlareDecl,
-            resolveFlareDecl,
-            addExerciseDecl,
-            addSleepDecl
-          ]
-        }]
-      }
+    const messages = [
+      { role: 'system', content: systemInstruction },
+      // include last few turns from history to preserve context
+      ...(Array.isArray(history) ? history.slice(-6).map((h: any) => ({ role: h.role === 'model' ? 'assistant' : 'user', content: h.text })) : []),
+      { role: 'user', content: message },
+    ];
+
+    if (!openrouterClient) throw new Error('OpenRouter client not initialized');
+    // Convert chat-style messages to OpenRouter input format
+    const { fromChatMessages } = await import('@openrouter/agent');
+    const input = fromChatMessages(messages);
+    const result = await openrouterClient.callModel({
+      model: OPENROUTER_MODEL,
+      input,
     });
 
-    const response = await chat.sendMessage({ message });
-    const botText = response.text || "";
-    const toolCalls = response.functionCalls?.map((f: any) => ({
-      name: f.name,
-      args: f.args,
-    })) || [];
+    // Prefer getText() if available, otherwise use direct text
+    let botText = '';
+    if (result && typeof (result as any).getText === 'function') {
+      botText = await (result as any).getText();
+    } else if (result && (result as any).text) {
+      botText = (result as any).text;
+    } else if (Array.isArray((result as any).output) && (result as any).output[0]) {
+      botText = (result as any).output[0].content || '';
+    }
 
-    return res.json({
-      text: botText,
-      toolCalls: toolCalls
-    });
+    // Expect model to return JSON as instructed. Try parsing, with tolerant JSON extraction.
+    const extractJSON = (s: string) => {
+      if (!s || typeof s !== 'string') return null;
+      // Try direct parse
+      try { return JSON.parse(s); } catch (_) {}
+      // Find first JSON object or array substring
+      const objMatch = s.match(/\{[\s\S]*\}/);
+      const arrMatch = s.match(/\[[\s\S]*\]/);
+      try {
+        if (objMatch) return JSON.parse(objMatch[0]);
+        if (arrMatch) return JSON.parse(arrMatch[0]);
+      } catch (_) {}
+      return null;
+    };
+
+    let parsed: any = extractJSON(botText) || { text: botText, toolCalls: [] };
+
+    return res.json({ text: parsed.text || '', toolCalls: parsed.toolCalls || [] });
   } catch (error: any) {
-    console.error("Gemini Coach Chat error:", error);
-    return res.status(500).json({
-      error: "Failed to process coach chat. " + (error instanceof Error ? error.message : String(error)),
-    });
+    console.error("Agent chat error:", error);
+    // If OpenRouter returned structured validation info, include it for debugging
+    const details = (error && (error.rawValue?.body$ || error.rawMessage || error.message)) || String(error);
+    return res.status(500).json({ error: `Failed to process coach chat. ${details}` });
   }
 });
 
-// Gout Food Purine Analysis Endpoint
+// Gout Food Purine Analysis Endpoint (OpenRouter)
 app.post("/api/gemini/food-analysis", async (req, res) => {
-  if (!ai) {
-    return res.status(500).json({
-      error: "Gemini API key is not configured. Please add GEMINI_API_KEY to your project Secrets.",
-    });
+  if (!OPENROUTER_API_KEY) {
+    return res.status(500).json({ error: "OpenRouter API key is not configured. Please add OPENROUTER_API_KEY to your project Secrets." });
   }
 
   const { foodQuery } = req.body;
@@ -290,61 +300,49 @@ app.post("/api/gemini/food-analysis", async (req, res) => {
   }
 
   try {
-    const prompt = `Analyze the food or meal or ingredients given: "${foodQuery}". Rate its purine content, explain its uric acid impact on gout patients, supply safety tips and list safe low-purine alternatives.`;
+    const systemInstruction = `You are an expert clinical dietician specializing in rheumatology and gout disease management. Provide accurate, evidence-based nutrition advice. Output a single JSON object matching this shape: { foodName: string, purineRating: 'Safe'|'Moderate'|'High', ratingExplanation: string, uricAcidImpact: string, safetyTips: string[3], lowPurineAlternatives: string[3] }. Do not include any extraneous text.`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: prompt,
-      config: {
-        systemInstruction: "You are an expert clinical dietician specializing in rheumatology and gout disease management. Provide accurate, evidence-based nutrition advice for gout prevention, identifying purine rich components and providing helpful guides. Strictly stick to natural remedies, supplements (like Tart Cherry, Celery extract, Bromelain), hydration, and lifestyle advice. Avoid recommending pharmaceutical medications like Allopurinol or Colchicine. Crucial yogurt rule: For any yogurt/probotic product, always check and analyze the probiotic strains. Plain traditional starters (Lactobacillus bulgaricus, Streptococcus thermophilus, Bifidobacterium lactis, and Lactobacillus acidophilus) are safe and help digest purines. Advise patients to strictly avoid strains like Lactobacillus casei or Lactobacillus paracasei because they can increase cumulative renal load.",
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          required: ["foodName", "purineRating", "ratingExplanation", "uricAcidImpact", "safetyTips", "lowPurineAlternatives"],
-          properties: {
-            foodName: {
-              type: Type.STRING,
-              description: "The name of the food or meal analyzed.",
-            },
-            purineRating: {
-              type: Type.STRING,
-              description: "Must be exactly one of: 'Safe' (low purine), 'Moderate' (medium purine), or 'High' (high purine, avoid).",
-            },
-            ratingExplanation: {
-              type: Type.STRING,
-              description: "Explain why this food got this status, noting specific high-purine ingredients or components like high fructose corn syrup, beer, seafood, yeast, or red meat.",
-            },
-            uricAcidImpact: {
-              type: Type.STRING,
-              description: "Describe the physiological outcome on uric acid levels (e.g. rapid conversion to uric acid, triggers local inflammation, slows down kidney excretion).",
-            },
-            safetyTips: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-              description: "Provide exactly three highly practical tips for gout sufferers eating or replacing this food.",
-            },
-            lowPurineAlternatives: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-              description: "Provide exactly three delicious, low-purine alternatives that can safely satisfy this craving or serve as healthy substitutes.",
-            },
-          },
-        },
-      },
-    });
+    const messages = [
+      { role: 'system', content: systemInstruction },
+      { role: 'user', content: `Analyze: "${foodQuery}"` },
+    ];
 
-    const jsonText = response.text;
-    if (!jsonText) {
-      throw new Error("Unable to extract response text from Gemini API.");
+    if (!openrouterClient) throw new Error('OpenRouter client not initialized');
+    const { fromChatMessages } = await import('@openrouter/agent');
+    const input = fromChatMessages(messages);
+    const result = await openrouterClient.callModel({ model: OPENROUTER_MODEL, input });
+
+    let jsonText = '';
+    if (result && typeof (result as any).getText === 'function') {
+      jsonText = await (result as any).getText();
+    } else if (result && (result as any).text) {
+      jsonText = (result as any).text;
+    } else if (Array.isArray((result as any).output) && (result as any).output[0]) {
+      jsonText = (result as any).output[0].content || '';
     }
 
-    const analyzedData = JSON.parse(jsonText.trim());
+    if (!jsonText) throw new Error('Empty response from model');
+
+    // Tolerant JSON extraction for model output
+    const extractJSON = (s: string) => {
+      if (!s || typeof s !== 'string') return null;
+      try { return JSON.parse(s); } catch (_) {}
+      const objMatch = s.match(/\{[\s\S]*\}/);
+      const arrMatch = s.match(/\[[\s\S]*\]/);
+      try {
+        if (objMatch) return JSON.parse(objMatch[0]);
+        if (arrMatch) return JSON.parse(arrMatch[0]);
+      } catch (_) {}
+      return null;
+    };
+
+    const analyzedData = extractJSON(jsonText.trim());
+    if (!analyzedData) throw new Error('Model returned non-JSON response');
     return res.json(analyzedData);
   } catch (error: any) {
-    console.error("Gemini food analysis error:", error);
-    return res.status(500).json({
-      error: "Failed to analyze food. " + (error instanceof Error ? error.message : String(error)),
-    });
+    console.error("Food analysis error:", error);
+    const details = (error && (error.rawValue?.body$ || error.rawMessage || error.message)) || String(error);
+    return res.status(500).json({ error: `Failed to analyze food. ${details}` });
   }
 });
 
